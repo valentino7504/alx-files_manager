@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const { hashPwd } = require('./helpers');
 
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = process.env.DB_PORT || 27017;
@@ -44,6 +45,33 @@ class DBClient {
     } catch (err) {
       console.log(err.message);
       return 0;
+    }
+  }
+
+  async userExists(email) {
+    const user = await this.db.collection('users').findOne({ email });
+    if (!user) return false;
+    return true;
+  }
+
+  async createUser(email, password) {
+    if (!email) {
+      throw new Error('Missing email');
+    }
+    if (!password) {
+      throw new Error('Missing password');
+    }
+    const exists = await this.userExists(email);
+    if (exists) {
+      throw new Error('Already exists');
+    }
+    const hashedPwd = hashPwd(password);
+    try {
+      const { insertedId } = await this.db.collection('users').insertOne({ email, password: hashedPwd });
+      const insertedDocument = await this.db.collection('users').findOne({ _id: insertedId });
+      return { id: insertedId, email: insertedDocument.email };
+    } catch (err) {
+      throw new Error(err.message);
     }
   }
 }
