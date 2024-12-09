@@ -1,7 +1,7 @@
 const dbClient = require('../utils/db');
 
 class UserController {
-  static async createUser(req, res) {
+  static async postNew(req, res) {
     const { email, password } = req.body;
     try {
       const user = await dbClient.createUser(email, password);
