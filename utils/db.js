@@ -1,5 +1,7 @@
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
+const uuid4 = require('uuid').v4;
 const { hashPwd } = require('./helpers');
+const redisClient = require('./redis');
 
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = process.env.DB_PORT || 27017;
@@ -73,6 +75,24 @@ class DBClient {
     } catch (err) {
       throw new Error(err.message);
     }
+  }
+
+  async validateUser(email, password) {
+    const exists = await this.userExists(email);
+    if (!exists) {
+      throw new Error('Unauthorized');
+    }
+    const user = await this.db.collection('users').findOne({ email, password: hashPwd(password) });
+    if (!user) {
+      throw new Error('Unauthorized');
+    }
+    return user._id;
+  }
+
+  async getUserById(id) {
+    const objectId = new ObjectId(id);
+    const { _id, email } = await this.db.collection('users').findOne({ _id: objectId });
+    return { id: _id, email };
   }
 }
 
