@@ -1,7 +1,6 @@
 const { MongoClient, ObjectId } = require('mongodb');
-const uuid4 = require('uuid').v4;
-const { hashPwd } = require('./helpers');
-const redisClient = require('./redis');
+const uuidv4 = require('uuid').v4;
+const { hashPwd, createFile, atob } = require('./helpers');
 
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = process.env.DB_PORT || 27017;
@@ -93,6 +92,55 @@ class DBClient {
     const objectId = new ObjectId(id);
     const { _id, email } = await this.db.collection('users').findOne({ _id: objectId });
     return { id: _id, email };
+  }
+
+  async getFileById(id) {
+    const objectId = new ObjectId(id);
+    const { _id, type } = await this.db.collection('files').findOne({ _id: objectId });
+    return { id: _id, type };
+  }
+
+  async createFile(name, type, parentId, isPublic, data, userId) {
+    if (!name) {
+      throw new Error('Missing name');
+    }
+    const acceptedTypes = ['folder', 'file', 'image'];
+    if (!type || !acceptedTypes.includes(type)) {
+      throw new Error('Missing type');
+    }
+    if (type !== 'folder' && !data) {
+      throw new Error('Missing data');
+    }
+    const storage = process.env.FOLDER_PATH || '/tmp/files_manager';
+    const parent = parentId === 0 ? 'root' : await this.getFileById(parentId);
+    const storageId = uuidv4();
+    let localPath = '';
+    if (!parent) {
+      throw new Error('Parent not found');
+    } else {
+      localPath = `${storage}/${storageId}`;
+    }
+    try {
+      const insertData = {
+        name, type, parentId, isPublic, userId,
+      };
+      if (type !== 'folder') {
+        insertData.localPath = localPath;
+        createFile(type, storageId, data ? atob(data) : null);
+      }
+      const { insertedId } = await this.db.collection('files').insertOne(insertData);
+      const insertedDocument = await this.db.collection('files').findOne({ _id: insertedId });
+      return {
+        id: insertedId,
+        name: insertedDocument.name,
+        userId: insertedDocument.userId,
+        type: insertedDocument.type,
+        isPublic: insertedDocument.isPublic,
+        parentId: insertedDocument.parentId,
+      };
+    } catch (err) {
+      throw new Error(err.message);
+    }
   }
 }
 

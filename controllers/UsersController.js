@@ -1,5 +1,5 @@
 const dbClient = require('../utils/db');
-const redisClient = require('../utils/redis');
+const { fetchUser } = require('../utils/fetchdata');
 
 class UsersController {
   static async postNew(req, res) {
@@ -13,13 +13,12 @@ class UsersController {
   }
 
   static async getMe(req, res) {
-    const token = req.get('X-Token');
-    const id = await redisClient.get(`auth_${token}`);
-    if (!id) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const userDetails = await fetchUser(req);
+      return res.status(200).json(userDetails);
+    } catch (error) {
+      return res.status(401).json({ error: error.message });
     }
-    const userDetails = await dbClient.getUserById(id);
-    return res.status(200).json(userDetails);
   }
 }
 
